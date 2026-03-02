@@ -3,15 +3,37 @@
 import { useEffect, useState } from 'react';
 import { ComputeResponse } from '@/lib/types/transit';
 
+type StoredResult = ComputeResponse | { error: string; details?: unknown };
+
+function isComputeResponse(value: StoredResult | null): value is ComputeResponse {
+  return !!value && typeof value === 'object' && 'recommended' in value && !!value.recommended && Array.isArray(value.recommended.legs);
+}
+
 export default function ResultView() {
-  const [result, setResult] = useState<ComputeResponse | null>(null);
+  const [result, setResult] = useState<StoredResult | null>(null);
 
   useEffect(() => {
     const raw = sessionStorage.getItem('leavetime.result');
-    if (raw) setResult(JSON.parse(raw));
+    if (!raw) return;
+
+    try {
+      setResult(JSON.parse(raw));
+    } catch {
+      setResult({ error: 'Failed to read trip result. Please recompute your trip.' });
+    }
   }, []);
 
   if (!result) return <div className="card">No result found. Go back and compute a trip.</div>;
+
+  if (!isComputeResponse(result)) {
+    return (
+      <div className="card">
+        <h1>Could not compute route</h1>
+        <p className="warning">{result.error ?? 'Unexpected response from compute service.'}</p>
+        <p className="small">Please go back and try again with a different destination/time or adjust commute settings.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid">

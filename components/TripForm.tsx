@@ -21,6 +21,8 @@ export default function TripForm() {
   const [arrivalTime, setArrivalTime] = useState('09:00');
   const [transferBufferMinutes, setTransferBufferMinutes] = useState(8);
   const [uncertaintyBufferMinutes, setUncertaintyBufferMinutes] = useState(10);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = getHomeAddress();
@@ -41,27 +43,41 @@ export default function TripForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setSubmitting(true);
+    setSubmitError(null);
     saveHomeAddress(home);
-    const payload = {
-      origin,
-      destination,
-      date,
-      arrivalTime,
-      transferBufferMinutes,
-      uncertaintyBufferMinutes,
-      maxWalkingDistanceMeters: 1200,
-      avoidModes: []
-    };
 
-    const res = await fetch('/api/compute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    try {
+      const payload = {
+        origin,
+        destination,
+        date,
+        arrivalTime,
+        transferBufferMinutes,
+        uncertaintyBufferMinutes,
+        maxWalkingDistanceMeters: 1200,
+        avoidModes: []
+      };
 
-    const data = await res.json();
-    sessionStorage.setItem('leavetime.result', JSON.stringify(data));
-    router.push('/results');
+      const res = await fetch('/api/compute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      sessionStorage.setItem('leavetime.result', JSON.stringify(data));
+
+      if (!res.ok) {
+        setSubmitError(data?.error ?? 'Unable to compute route. Please try again.');
+      }
+
+      router.push('/results');
+    } catch {
+      setSubmitError('Network error while computing route. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -91,7 +107,8 @@ export default function TripForm() {
         <label>Uncertainty buffer (minutes)</label>
         <input type="number" min={0} value={uncertaintyBufferMinutes} onChange={(e) => setUncertaintyBufferMinutes(Number(e.target.value))} />
       </div>
-      <button type="submit">Compute Leave Time</button>
+      {submitError && <p className="warning">{submitError}</p>}
+      <button type="submit" disabled={submitting}>{submitting ? 'Computing...' : 'Compute Leave Time'}</button>
     </form>
   );
 }
