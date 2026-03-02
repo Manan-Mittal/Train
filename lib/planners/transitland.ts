@@ -4,21 +4,45 @@ import { cached, withRetry } from '@/lib/utils';
 
 const TRANSITLAND_BASE = process.env.TRANSITLAND_BASE_URL ?? 'https://transit.land';
 
+export function buildTransitlandPlanUrl(input: ComputeRequest, apiKey?: string): string {
+  const params = new URLSearchParams({
+    fromPlace: input.origin,
+    toPlace: input.destination,
+    arriveBy: 'true',
+    time: input.arrivalTime,
+    date: input.date,
+    mode: 'TRANSIT,WALK',
+    maxWalkDistance: String(input.maxWalkingDistanceMeters)
+  });
+
+  if (apiKey) {
+    params.set('apikey', apiKey);
+  }
+
+  return `${TRANSITLAND_BASE}/api/v2/routing/otp/plan?${params.toString()}`;
+}
+
 export class TransitlandPlanner implements PlannerProvider {
   name = 'transitland';
 
   async planTrip(input: ComputeRequest): Promise<Itinerary[]> {
     const apiKey = process.env.TRANSITLAND_API_KEY;
-    const url = `${TRANSITLAND_BASE}/api/v2/routing/otp/plan?fromPlace=${encodeURIComponent(input.origin)}&toPlace=${encodeURIComponent(input.destination)}&arriveBy=true&time=${encodeURIComponent(input.arrivalTime)}&date=${encodeURIComponent(input.date)}&mode=TRANSIT,WALK&maxWalkDistance=${input.maxWalkingDistanceMeters}`;
+    const url = buildTransitlandPlanUrl(input, apiKey);
 
     return cached(url, async () =>
       withRetry(async () => {
         const res = await fetch(url, {
-          headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+          headers: apiKey ? { apikey: apiKey } : undefined,
           next: { revalidate: 30 }
         });
-        if (!res.ok) throw new Error(`Transitland request failed (${res.status})`);
-        const body = await res.json();
+
+        const body = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          const reason = body?.error ?? body?.message ?? `status ${res.status}`;
+          throw new Error(`Transitland request failed: ${reason}`);
+        }
+
         const itineraries = body?.plan?.itineraries ?? [];
         return itineraries.map((it: any) => normalizeItinerary(it, this.name));
       })

@@ -47,12 +47,14 @@ Open `http://localhost:3000`.
 
 See `.env.example`.
 
-- `TRANSITLAND_API_KEY` (optional but recommended)
+- `TRANSITLAND_API_KEY` (optional but recommended). This app passes it as `apikey` query/header as required by Transitland.
 - `GOOGLE_MAPS_API_KEY` (optional fallback planner)
 - `MTA_ALERT_FEED_URL` (defaults provided)
 - `NJT_ALERT_ENDPOINT` and `NJT_API_KEY` (optional)
 
 App runs in Transitland-only mode with safe defaults when paid keys are absent.
+
+If you get `No route found from planners`, inspect `/api/compute` response `details.diagnostics` for provider-level errors and coverage gaps.
 
 ## Run tests
 

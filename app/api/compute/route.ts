@@ -21,13 +21,22 @@ export async function POST(req: NextRequest) {
   try {
     const input = schema.parse(await req.json());
 
-    const itineraries = await planWithFallback(input);
-    if (!itineraries.length) {
-      return NextResponse.json({ error: 'No route found' }, { status: 404 });
+    const planning = await planWithFallback(input);
+    if (!planning.itineraries.length) {
+      return NextResponse.json(
+        {
+          error: 'No route found from planners for this trip/time.',
+          details: {
+            diagnostics: planning.diagnostics,
+            hint: 'Transitland routing is beta and coverage can vary by date/time. Try nearby station names, different arrival time, or enable Google fallback key.'
+          }
+        },
+        { status: 404 }
+      );
     }
 
     const alerts = await collectRealtimeAlerts();
-    const enriched = itineraries.map((itinerary) => ({
+    const enriched = planning.itineraries.map((itinerary) => ({
       ...itinerary,
       legs: itinerary.legs.map((leg) => ({
         ...leg,

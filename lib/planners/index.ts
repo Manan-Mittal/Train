@@ -5,16 +5,37 @@ import { GooglePlanner } from './google';
 
 const providers: PlannerProvider[] = [new TransitlandPlanner(), new GooglePlanner()];
 
-export async function planWithFallback(input: ComputeRequest): Promise<Itinerary[]> {
+export interface PlanningDiagnostics {
+  provider: string;
+  status: 'ok' | 'error';
+  itinerariesFound: number;
+  message?: string;
+}
+
+export interface PlanningResult {
+  itineraries: Itinerary[];
+  diagnostics: PlanningDiagnostics[];
+}
+
+export async function planWithFallback(input: ComputeRequest): Promise<PlanningResult> {
   const collected: Itinerary[] = [];
+  const diagnostics: PlanningDiagnostics[] = [];
+
   for (const provider of providers) {
     try {
       const itineraries = await provider.planTrip(input);
+      diagnostics.push({ provider: provider.name, status: 'ok', itinerariesFound: itineraries.length });
       collected.push(...itineraries);
-      if (collected.length) break;
-    } catch {
-      continue;
+      if (itineraries.length) break;
+    } catch (error: any) {
+      diagnostics.push({
+        provider: provider.name,
+        status: 'error',
+        itinerariesFound: 0,
+        message: error?.message ?? 'Unknown planner error'
+      });
     }
   }
-  return collected;
+
+  return { itineraries: collected, diagnostics };
 }
